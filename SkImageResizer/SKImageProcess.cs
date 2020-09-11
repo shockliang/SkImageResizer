@@ -42,7 +42,7 @@ namespace SkImageResizer
         }
 
         public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
-            => ResizeImagesAsync(sourcePath, destPath, scale, CancellationToken.None);
+            => await ResizeImagesAsync(sourcePath, destPath, scale, CancellationToken.None);
         
         public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale, CancellationToken ct)
         {

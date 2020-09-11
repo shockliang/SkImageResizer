@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using SkiaSharp;
 
@@ -38,13 +40,19 @@ namespace SkImageResizer
                 data.SaveTo(s);
             }
         }
-        
+
         public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
+            => ResizeImagesAsync(sourcePath, destPath, scale, CancellationToken.None);
+        
+        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale, CancellationToken ct)
         {
             var allFiles = FindImages(sourcePath);
             var tasks = new ConcurrentBag<Task>();
+            var i = 0;
             foreach (var filePath in allFiles)
             {
+                i++;
+                var j = i;
                 var task = Task.Run(() =>
                 {
                     var imgName = Path.GetFileNameWithoutExtension(filePath);
@@ -61,17 +69,36 @@ namespace SkImageResizer
                     using var scaledBitmap = bitmap.Resize(
                         new SKImageInfo(destinationWidth, destinationHeight),
                         SKFilterQuality.High);
+                    
+                    if (ct.IsCancellationRequested)
+                    {
+                        Console.WriteLine($"{j} {filePath} IsCancellationRequested");
+                        return;
+                    }
                     using var scaledImage = SKImage.FromBitmap(scaledBitmap);
                     using var data = scaledImage.Encode(SKEncodedImageFormat.Jpeg, 100);
                     using var s = File.OpenWrite(Path.Combine(destPath, imgName + ".jpg"));
                     data.SaveTo(s);
-                });
+                }, ct);
 
                 tasks.Add(task);
             }
 
-            await Task.WhenAll(tasks);
-         }
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException oce)
+            {
+                foreach (var task in tasks)
+                {
+                    if (task.IsCanceled)
+                    {
+                        Console.WriteLine($"Task {task.Id}");
+                    }
+                }
+            }
+        }
 
 
         /// <summary>

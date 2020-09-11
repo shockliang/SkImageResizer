@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SkImageResizer
@@ -9,6 +10,16 @@ namespace SkImageResizer
     {
         static async Task Main(string[] args)
         {
+            var cts = new CancellationTokenSource();
+            ThreadPool.QueueUserWorkItem(x =>
+            {
+                ConsoleKeyInfo key = Console.ReadKey();
+                if (key.Key == ConsoleKey.C)
+                {
+                    cts.Cancel();
+                }
+            });
+            
             var sourcePath = Path.Combine(Environment.CurrentDirectory, "images");
             var destinationPath = Path.Combine(Environment.CurrentDirectory, "output");
 
@@ -23,7 +34,19 @@ namespace SkImageResizer
             
             imageProcess.Clean(destinationPath);
             sw.Restart();
-            await imageProcess.ResizeImagesAsync(sourcePath, destinationPath, 2.0);
+            try
+            {
+                await imageProcess.ResizeImagesAsync(sourcePath, destinationPath, 2.0, cts.Token);
+            }
+            catch (OperationCanceledException oce)
+            {
+                Console.WriteLine($"Cancel exception:{oce}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Exception:{e}");
+            }
+            
             sw.Stop();
             Console.WriteLine($"非同步花費時間: {sw.ElapsedMilliseconds} ms");
         }
